@@ -115,7 +115,7 @@ class RankingsService {
           pr.fantasy_points_ppr,
           pr.is_game_over,
           p.age,
-          @rank := @rank + 1 AS rank
+          @rank := @rank + 1 AS \`rank\`
          FROM player_rankings pr
          JOIN players p ON pr.player_id = p.player_id
          CROSS JOIN (SELECT @rank := 0) r
