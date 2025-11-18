@@ -1,4 +1,3 @@
-// ===== src/controllers/userController.js =====
 const db = require('../config/database');
 
 // Get user profile (R-0006)

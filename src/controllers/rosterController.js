@@ -1,4 +1,3 @@
-// ===== src/controllers/rosterController.js =====
 const db = require('../config/database');
 
 // Get all rosters for user

@@ -1,4 +1,3 @@
-// ===== src/controllers/playerController.js =====
 const db = require('../config/database');
 
 // Get player rankings

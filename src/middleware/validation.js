@@ -1,4 +1,3 @@
-// ===== src/middleware/validation.js =====
 const { body, validationResult } = require('express-validator');
 
 // Validation middleware to check for errors
