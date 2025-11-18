@@ -100,7 +100,7 @@ class RankingsService {
   }
 
   // Get rankings from database
-  async getRankingsFromDatabase(week, season, scoringType = 'standard') {
+ async getRankingsFromDatabase(week, season, scoringType = 'standard') {
     try {
       const pointsColumn = scoringType === 'ppr' ? 'fantasy_points_ppr' : 'fantasy_points';
       
@@ -114,17 +114,21 @@ class RankingsService {
           pr.fantasy_points,
           pr.fantasy_points_ppr,
           pr.is_game_over,
-          p.age,
-          @rank := @rank + 1 AS \`rank\`
+          p.age
          FROM player_rankings pr
-         JOIN players p ON pr.player_id = p.player_id
-         CROSS JOIN (SELECT @rank := 0) r
+         LEFT JOIN players p ON pr.player_id = p.player_id
          WHERE pr.week_number = ? AND pr.season = ?
          ORDER BY ${pointsColumn} DESC`,
         [week, season]
       );
 
-      return rankings;
+      // Add rank in JavaScript instead
+      const rankedResults = rankings.map((player, index) => ({
+        ...player,
+        rank: index + 1
+      }));
+
+      return rankedResults;
     } catch (error) {
       console.error('Error fetching rankings from database:', error);
       throw error;
