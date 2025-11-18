@@ -1,44 +1,42 @@
-// ===== src/services/externalApiService.js =====
-// Placeholder for external API integration
-// You'll implement this once you find your fantasy football API
+const axios = require('axios');
 
 class ExternalApiService {
   constructor() {
-    this.apiKey = process.env.FANTASY_API_KEY;
-    this.baseUrl = process.env.FANTASY_API_URL;
+    this.apiKey = process.env.SPORTSDATA_API_KEY;
+    this.baseUrl = process.env.SPORTSDATA_API_URL;
+    this.currentSeason = process.env.CURRENT_NFL_SEASON || '2025';
   }
 
-  // Fetch player rankings from external API
-  async fetchPlayerRankings(week, season, format) {
-    // TODO: Implement API call to your chosen fantasy football API
-    // Example structure:
-    /*
-    const response = await fetch(`${this.baseUrl}/rankings?week=${week}&season=${season}&format=${format}`, {
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`
-      }
-    });
-    return await response.json();
-    */
-    throw new Error('External API not yet configured');
+  // Fetch fantasy game stats by week
+  async fetchFantasyStatsByWeek(week, seasonType = 'REG') {
+    try {
+      const url = `${this.baseUrl}/FantasyGameStatsByWeek/${this.currentSeason}${seasonType}/${week}`;
+      
+      console.log(`Fetching fantasy stats from: ${url}`);
+      
+      const response = await axios.get(url, {
+        params: { key: this.apiKey }
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching fantasy stats:', error.message);
+      throw new Error('Failed to fetch fantasy stats from SportsData API');
+    }
   }
 
-  // Fetch player stats
-  async fetchPlayerStats(playerId) {
-    // TODO: Implement
-    throw new Error('External API not yet configured');
-  }
-
-  // Sync players to database
-  async syncPlayersToDatabase() {
-    // TODO: Fetch players from API and insert/update in database
-    throw new Error('External API not yet configured');
-  }
-
-  // Update weekly performances
-  async updateWeeklyPerformances(week, season) {
-    // TODO: Fetch actual player performances and update database
-    throw new Error('External API not yet configured');
+  // Helper to get player age (you may need another API endpoint for this)
+  // For now, we'll return null and handle it separately
+  calculateAge(birthDate) {
+    if (!birthDate) return null;
+    const today = new Date();
+    const birth = new Date(birthDate);
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    return age;
   }
 }
 
