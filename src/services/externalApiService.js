@@ -25,6 +25,26 @@ class ExternalApiService {
     }
   }
 
+  // Fetch fantasy projections by week
+
+  async fetchFantasyProjectionsByWeek(week, seasonType = 'REG') {
+    try {
+      // Use the correct projections endpoint (not IDP)
+      const url = `https://api.sportsdata.io/v3/nfl/projections/json/PlayerGameProjectionStatsByWeek/${this.currentSeason}${seasonType}/${week}`;
+      
+      console.log(`Fetching fantasy projections from: ${url}`);
+      
+      const response = await axios.get(url, {
+        params: { key: this.apiKey }
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching fantasy projections:', error.message);
+      throw new Error('Failed to fetch fantasy projections from SportsData API');
+    }
+  }
+
   // Helper to get player age (you may need another API endpoint for this)
   // For now, we'll return null and handle it separately
   calculateAge(birthDate) {

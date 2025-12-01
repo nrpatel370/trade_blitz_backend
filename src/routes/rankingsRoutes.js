@@ -9,4 +9,9 @@ router.post('/sync', rankingsController.syncRankings);
 // Get rankings from database
 router.get('/', rankingsController.getRankings);
 
+// Sync projections from API
+router.post('/sync-projections', rankingsController.syncProjections);
+
+// Sync future week (weeks that haven't been played yet)
+router.post('/sync-future-week', rankingsController.syncFutureWeek);
 module.exports = router;

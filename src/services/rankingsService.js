@@ -99,13 +99,239 @@ class RankingsService {
     }
   }
 
-  // Get rankings from database
- async getRankingsFromDatabase(week, season, scoringType = 'standard') {
+  // Sync fantasy projections from API to database
+  async syncFantasyProjections(week, seasonType = 'REG') {
     try {
-      const pointsColumn = scoringType === 'ppr' ? 'fantasy_points_ppr' : 'fantasy_points';
+      console.log(`Starting projections sync for week ${week}...`);
       
-      const [rankings] = await db.query(
-        `SELECT 
+      // Fetch projections from API
+      const projectionsData = await externalApiService.fetchFantasyProjectionsByWeek(week, seasonType);
+      
+      if (!projectionsData || projectionsData.length === 0) {
+        console.log('No projections data received from API');
+        return { success: false, message: 'No projections data received from API' };
+      }
+
+      console.log(`Received ${projectionsData.length} player projections from API`);
+
+      let projectionsUpdated = 0;
+      let playersNotFound = 0;
+      let errors = 0;
+
+      for (const projection of projectionsData) {
+        try {
+          // Try to find player by external ID first
+          let [existingPlayer] = await db.query(
+            'SELECT player_id FROM players WHERE external_player_id = ?',
+            [projection.PlayerID]
+          );
+
+          // If not found by ID, try by name and team
+          if (existingPlayer.length === 0) {
+            [existingPlayer] = await db.query(
+              'SELECT player_id FROM players WHERE player_name = ? AND team_name = ?',
+              [projection.Name, projection.Team]
+            );
+          }
+
+          if (existingPlayer.length === 0) {
+            console.log(`Player ${projection.Name} (ID: ${projection.PlayerID}) not found in database, skipping projection`);
+            playersNotFound++;
+            continue;
+          }
+
+          const playerId = existingPlayer[0].player_id;
+
+          // Check if ranking exists for this player/week
+          const [existingRanking] = await db.query(
+            'SELECT ranking_id FROM player_rankings WHERE player_id = ? AND week_number = ? AND season = ?',
+            [playerId, projection.Week, projection.Season]
+          );
+
+          if (existingRanking.length === 0) {
+            console.log(`No ranking record found for ${projection.Name} for week ${projection.Week}, skipping`);
+            continue;
+          }
+
+          // Update projected points in player_rankings
+          const [result] = await db.query(
+            `UPDATE player_rankings 
+             SET projected_points = ?,
+                 projected_points_ppr = ?,
+                 last_updated = CURRENT_TIMESTAMP
+             WHERE player_id = ? AND week_number = ? AND season = ?`,
+            [
+              projection.FantasyPoints || 0,
+              projection.FantasyPointsPPR || 0,
+              playerId,
+              projection.Week,
+              projection.Season
+            ]
+          );
+          
+          if (result.affectedRows > 0) {
+            projectionsUpdated++;
+            console.log(`Updated projections for ${projection.Name}: ${projection.FantasyPoints} pts`);
+          }
+        } catch (error) {
+          console.error(`Error processing projection for ${projection.Name}:`, error.message);
+          errors++;
+        }
+      }
+
+      console.log(`Projections sync complete: ${projectionsUpdated} projections updated, ${playersNotFound} players not found, ${errors} errors`);
+
+      return {
+        success: true,
+        projectionsUpdated,
+        playersNotFound,
+        errors,
+        message: `Successfully synced ${projectionsUpdated} projections for week ${week}`
+      };
+    } catch (error) {
+      console.error('Error syncing fantasy projections:', error);
+      throw error;
+    }
+  }
+
+  // Sync future week projections (for weeks that haven't been played yet)
+  async syncFutureWeekProjections(week, seasonType = 'REG') {
+    try {
+      console.log(`Starting future week projections sync for week ${week}...`);
+      
+      // Fetch projections from API
+      const projectionsData = await externalApiService.fetchFantasyProjectionsByWeek(week, seasonType);
+      
+      if (!projectionsData || projectionsData.length === 0) {
+        console.log('No projections data received from API');
+        return { success: false, message: 'No projections data received from API' };
+      }
+
+      console.log(`Received ${projectionsData.length} player projections from API`);
+
+      let playersInserted = 0;
+      let rankingsInserted = 0;
+      let errors = 0;
+
+      for (const projection of projectionsData) {
+        try {
+          // Filter only fantasy-relevant positions
+          const fantasyPositions = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF'];
+          if (!fantasyPositions.includes(projection.Position)) {
+            continue;
+          }
+
+          // First, ensure player exists in players table
+          const [existingPlayer] = await db.query(
+            'SELECT player_id FROM players WHERE external_player_id = ?',
+            [projection.PlayerID]
+          );
+
+          let playerId;
+
+          if (existingPlayer.length === 0) {
+            // Insert new player
+            const [playerResult] = await db.query(
+              `INSERT INTO players (external_player_id, player_name, team_name, position) 
+               VALUES (?, ?, ?, ?)`,
+              [projection.PlayerID, projection.Name, projection.Team, projection.Position]
+            );
+            playerId = playerResult.insertId;
+            playersInserted++;
+          } else {
+            playerId = existingPlayer[0].player_id;
+          }
+
+          // Insert or update ranking with projected points
+          // Set fantasy_points to NULL for future weeks, will be filled when actual stats sync
+          await db.query(
+            `INSERT INTO player_rankings 
+             (player_id, game_id, season_type, season, week_number, team_name, opponent, 
+              player_name, position, fantasy_points, fantasy_points_ppr, 
+              projected_points, projected_points_ppr, is_game_over)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+             projected_points = VALUES(projected_points),
+             projected_points_ppr = VALUES(projected_points_ppr),
+             team_name = VALUES(team_name),
+             opponent = VALUES(opponent),
+             player_name = VALUES(player_name),
+             position = VALUES(position),
+             last_updated = CURRENT_TIMESTAMP`,
+            [
+              playerId,                              // 1
+              projection.GameKey,                    // 2
+              seasonType,                            // 3
+              projection.Season,                     // 4
+              projection.Week,                       // 5
+              projection.Team,                       // 6
+              projection.Opponent,                   // 7
+              projection.Name,                       // 8
+              projection.Position,                   // 9
+              // fantasy_points = NULL (in SQL)      // 10
+              // fantasy_points_ppr = NULL (in SQL)  // 11
+              projection.FantasyPoints || 0,         // 12 - projected_points
+              projection.FantasyPointsPPR || 0,      // 13 - projected_points_ppr
+              false                                  // 14 - is_game_over
+            ]
+          );
+          rankingsInserted++;
+        } catch (error) {
+          console.error(`Error processing projection for ${projection.Name}:`, error.message);
+          errors++;
+        }
+      }
+
+      console.log(`Future week sync complete: ${playersInserted} players added, ${rankingsInserted} rankings synced, ${errors} errors`);
+
+      return {
+        success: true,
+        playersInserted,
+        rankingsInserted,
+        errors,
+        message: `Successfully synced ${rankingsInserted} projections for future week ${week}`
+      };
+    } catch (error) {
+      console.error('Error syncing future week projections:', error);
+      throw error;
+    }
+  }
+
+  // Get rankings from database
+ async getRankingsFromDatabase(week, season, scoringType = 'standard', sortBy = 'points', sortOrder = 'desc', teamFilter = null) {
+    try {
+      // Determine which column to sort by
+      let sortColumn;
+      switch(sortBy) {
+        case 'rank':
+        case 'points':
+          sortColumn = scoringType === 'ppr' ? 'fantasy_points_ppr' : 'fantasy_points';
+          break;
+        case 'team':
+          sortColumn = 'team_name';
+          break;
+        case 'projected':
+          sortColumn = scoringType === 'ppr' ? 'projected_points_ppr' : 'projected_points';
+          break;
+        default:
+          sortColumn = scoringType === 'ppr' ? 'fantasy_points_ppr' : 'fantasy_points';
+      }
+
+      // Build WHERE clause
+      let whereClause = 'WHERE pr.week_number = ? AND pr.season = ?';
+      const queryParams = [week, season];
+
+      if (teamFilter) {
+        whereClause += ' AND pr.team_name = ?';
+        queryParams.push(teamFilter);
+      }
+
+      // Build ORDER BY clause - handle nulls for projected points
+      const orderDirection = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+      const nullHandling = sortBy === 'projected' ? `${sortColumn} IS NULL, ` : '';
+      
+      const query = `
+        SELECT 
           pr.ranking_id,
           pr.player_name,
           pr.position,
@@ -113,16 +339,18 @@ class RankingsService {
           pr.opponent,
           pr.fantasy_points,
           pr.fantasy_points_ppr,
+          pr.projected_points,
+          pr.projected_points_ppr,
           pr.is_game_over,
           p.age
-         FROM player_rankings pr
-         LEFT JOIN players p ON pr.player_id = p.player_id
-         WHERE pr.week_number = ? AND pr.season = ?
-         ORDER BY ${pointsColumn} DESC`,
-        [week, season]
-      );
+        FROM player_rankings pr
+        LEFT JOIN players p ON pr.player_id = p.player_id
+        ${whereClause}
+        ORDER BY ${nullHandling}${sortColumn} ${orderDirection}`;
 
-      // Add rank in JavaScript instead
+      const [rankings] = await db.query(query, queryParams);
+
+      // Add rank in JavaScript
       const rankedResults = rankings.map((player, index) => ({
         ...player,
         rank: index + 1
