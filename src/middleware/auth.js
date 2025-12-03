@@ -1,6 +1,22 @@
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
 
+// Optional authentication - sets userId if token present, continues regardless
+exports.optionalAuth = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+
+    if (token) {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      req.userId = decoded.userId;
+    }
+    next();
+  } catch (error) {
+    // Token invalid or expired, but continue anyway (anonymous user)
+    next();
+  }
+};
+
 exports.authenticate = async (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];

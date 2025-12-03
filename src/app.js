@@ -6,6 +6,7 @@ const userRoutes = require('./routes/userRoutes');
 const rosterRoutes = require('./routes/rosterRoutes');
 const playerRoutes = require('./routes/playerRoutes');
 const rankingsRoutes = require('./routes/rankingsRoutes');
+const feedbackRoutes = require('./routes/feedbackRoutes');
 const app = express();
 
 // Middleware
@@ -22,6 +23,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/rosters', rosterRoutes);
 app.use('/api/players', playerRoutes);
 app.use('/api/rankings', rankingsRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
