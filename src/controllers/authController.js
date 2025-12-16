@@ -1,14 +1,26 @@
+/*
+ * authController.js - Authentication Controller
+ * 
+ * Handles user registration, login, logout, and session verification
+ * Single Responsibility: Only manages authentication operations
+ */
+
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
 const crypto = require('crypto');
 
-// Register new user
+/*
+ * Register a new user account
+ * Creates user record, generates JWT token, and establishes session
+ * @param {Object} req - Request with username, email, password, firstName, lastName
+ * @param {Object} res - Response with token, sessionId, and user data
+ */
 exports.register = async (req, res) => {
   try {
     const { username, email, password, firstName, lastName } = req.body;
 
-    // Check if user exists
+    // Check if email or username is already taken
     const [existingUsers] = await db.query(
       'SELECT * FROM users WHERE email = ? OR username = ?',
       [email, username]
@@ -18,23 +30,23 @@ exports.register = async (req, res) => {
       return res.status(400).json({ error: 'User already exists' });
     }
 
-    // Hash password
+    // Hash password with bcrypt (10 salt rounds)
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert user
+    // Insert new user into database
     const [result] = await db.query(
       'INSERT INTO users (username, email, password_hash, first_name, last_name) VALUES (?, ?, ?, ?, ?)',
       [username, email, hashedPassword, firstName, lastName]
     );
 
-    // Create JWT token
+    // Generate JWT token for immediate login after registration
     const token = jwt.sign(
       { userId: result.insertId },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN }
     );
 
-    // Create session (R-0008: persistent login)
+    // Create persistent session for "remember me" functionality
     const sessionId = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
@@ -61,12 +73,15 @@ exports.register = async (req, res) => {
   }
 };
 
-// Login user
+/*
+ * Login existing user
+ * Validates credentials, generates new token and session
+ */
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Find user
+    // Find user by email
     const [users] = await db.query(
       'SELECT * FROM users WHERE email = ?',
       [email]
@@ -78,27 +93,24 @@ exports.login = async (req, res) => {
 
     const user = users[0];
 
-    // Verify password
+    // Compare provided password with stored hash
     const isValidPassword = await bcrypt.compare(password, user.password_hash);
     if (!isValidPassword) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Create JWT token
+    // Generate new JWT token
     const token = jwt.sign(
       { userId: user.user_id },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN }
     );
 
-    // Create or update session (R-0008: persistent login)
+    // Create new session, removing any old sessions for this user
     const sessionId = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-    // Delete old sessions for this user
     await db.query('DELETE FROM sessions WHERE user_id = ?', [user.user_id]);
-
-    // Create new session
     await db.query(
       'INSERT INTO sessions (session_id, user_id, expires_at) VALUES (?, ?, ?)',
       [sessionId, user.user_id, expiresAt]
@@ -123,11 +135,14 @@ exports.login = async (req, res) => {
   }
 };
 
-// Logout user
+/*
+ * Logout user by removing their session
+ */
 exports.logout = async (req, res) => {
   try {
     const { sessionId } = req.body;
 
+    // Delete session from database if provided
     if (sessionId) {
       await db.query('DELETE FROM sessions WHERE session_id = ?', [sessionId]);
     }
@@ -139,7 +154,10 @@ exports.logout = async (req, res) => {
   }
 };
 
-// Verify session (R-0008: check if session is still valid)
+/*
+ * Verify if current session/token is still valid
+ * Used on app load to restore user session
+ */
 exports.verifySession = async (req, res) => {
   try {
     const sessionId = req.headers['x-session-id'];
@@ -149,12 +167,12 @@ exports.verifySession = async (req, res) => {
       return res.status(401).json({ valid: false, error: 'No session found' });
     }
 
-    // Verify JWT token
+    // Verify the JWT token
     if (token) {
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         
-        // Check if session exists and is valid
+        // If session ID provided, verify it's still active
         if (sessionId) {
           const [sessions] = await db.query(
             'SELECT * FROM sessions WHERE session_id = ? AND user_id = ? AND expires_at > NOW()',
@@ -166,7 +184,7 @@ exports.verifySession = async (req, res) => {
           }
         }
 
-        // Get user data
+        // Get user data to return
         const [users] = await db.query(
           'SELECT user_id, username, email, first_name, last_name, profile_icon FROM users WHERE user_id = ?',
           [decoded.userId]

@@ -1,6 +1,19 @@
+/*
+ * validation.js - Request Validation Middleware
+ * 
+ * Provides input validation and sanitization for API endpoints
+ * Uses express-validator for declarative validation rules
+ * 
+ * SOLID: Single Responsibility - Only handles input validation
+ * SOLID: Open/Closed - Easy to add new validators without modifying existing ones
+ */
+
 const { body, validationResult } = require('express-validator');
 
-// Validation middleware to check for errors
+/*
+ * Generic validation error checker
+ * Can be used after custom validation chains
+ */
 exports.validate = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -9,7 +22,10 @@ exports.validate = (req, res, next) => {
   next();
 };
 
-// Registration validation
+/*
+ * Registration validation rules
+ * Validates: username (3-50 chars, alphanumeric), email, password (6+ chars)
+ */
 exports.validateRegistration = [
   body('username')
     .trim()
@@ -44,7 +60,10 @@ exports.validateRegistration = [
   }
 ];
 
-// Login validation
+/**
+ * Login validation rules
+ * Validates: email format, password not empty
+ */
 exports.validateLogin = [
   body('email')
     .trim()
@@ -63,7 +82,10 @@ exports.validateLogin = [
   }
 ];
 
-// User update validation
+/**
+ * User profile update validation rules
+ * All fields optional, validates format when provided
+ */
 exports.validateUserUpdate = [
   body('firstName')
     .optional()
@@ -90,7 +112,9 @@ exports.validateUserUpdate = [
   }
 ];
 
-// Roster validation
+/*
+ * Roster creation/update validation rules
+ */
 exports.validateRoster = [
   body('rosterName')
     .trim()

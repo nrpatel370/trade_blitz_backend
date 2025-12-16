@@ -1,34 +1,51 @@
+/*
+ * auth.js - Authentication Middleware
+ * 
+ * Provides two authentication strategies:
+ * 1. optionalAuth - Allows anonymous access but attaches userId if token present
+ * 2. authenticate - Requires valid token, blocks unauthorized requests
+ */
+
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
 
-// Optional authentication - sets userId if token present, continues regardless
+/*
+ * Optional authentication middleware
+ * Sets userId on request if valid token exists, but doesn't block anonymous users
+ */
 exports.optionalAuth = async (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
 
     if (token) {
+      // Token exists, try to verify and attach userId
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       req.userId = decoded.userId;
     }
     next();
   } catch (error) {
-    // Token invalid or expired, but continue anyway (anonymous user)
+    // Token invalid or expired - continue as anonymous user
     next();
   }
 };
 
+/*
+ * Required authentication middleware
+ * Blocks requests without valid JWT token
+ */
 exports.authenticate = async (req, res, next) => {
   try {
+    // Extract token from Authorization header
     const token = req.headers.authorization?.split(' ')[1];
 
     if (!token) {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // Verify JWT
+    // Verify JWT signature and expiration
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    // Optional: Verify session is still active
+    // If session ID provided, verify session is still active in database
     const sessionId = req.headers['x-session-id'];
     if (sessionId) {
       const [sessions] = await db.query(
@@ -41,10 +58,11 @@ exports.authenticate = async (req, res, next) => {
       }
     }
 
-    // Attach user ID to request
+    // Attach userId to request for use in controllers
     req.userId = decoded.userId;
     next();
   } catch (error) {
+    // Handle specific JWT errors with appropriate messages
     if (error.name === 'JsonWebTokenError') {
       return res.status(401).json({ error: 'Invalid token' });
     }

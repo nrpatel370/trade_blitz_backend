@@ -1,8 +1,20 @@
+/*
+ * rankingsService.js - Player Rankings Service
+ * 
+ * Manages syncing NFL fantasy data from external API to local database
+ * 
+ * Design Pattern: Singleton - Single instance manages all rankings operations
+ * SOLID: Single Responsibility - Only handles ranking data sync and retrieval
+ * SOLID: Dependency Inversion - Depends on externalApiService abstraction
+ */
+
 const db = require('../config/database');
 const externalApiService = require('./externalApiService');
 
 class RankingsService {
-  // Sync fantasy rankings from API to database
+  /*
+   * Sync actual fantasy stats from SportsData API for a completed week
+   */
   async syncFantasyRankings(week, seasonType = 'REG') {
     try {
       console.log(`Starting sync for week ${week}...`);
@@ -99,7 +111,9 @@ class RankingsService {
     }
   }
 
-  // Sync fantasy projections from API to database
+  /*
+   * Update projections for players who already have ranking records
+   */
   async syncFantasyProjections(week, seasonType = 'REG') {
     try {
       console.log(`Starting projections sync for week ${week}...`);
@@ -194,7 +208,9 @@ class RankingsService {
     }
   }
 
-  // Sync future week projections (for weeks that haven't been played yet)
+  /*
+   * Create ranking records for future weeks using projections
+   */
   async syncFutureWeekProjections(week, seasonType = 'REG') {
     try {
       console.log(`Starting future week projections sync for week ${week}...`);
@@ -297,7 +313,9 @@ class RankingsService {
     }
   }
 
-  // Get rankings from database
+  /*
+   * Retrieve player rankings from database with sorting and filtering
+   */
  async getRankingsFromDatabase(week, season, scoringType = 'standard', sortBy = 'points', sortOrder = 'desc', teamFilter = null) {
     try {
       // Determine which column to sort by
