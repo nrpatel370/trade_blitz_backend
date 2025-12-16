@@ -105,12 +105,12 @@ class TradeAnalysisService {
   // Position scarcity multiplier
   getPositionMultiplier(position) {
     const multipliers = {
-      'QB': 1.0,   // QBs are plentiful
-      'RB': 1.4,   // RBs are scarce and valuable
-      'WR': 1.3,   // WRs are moderately valuable
-      'TE': 1.2,   // Top TEs are scarce
-      'K': 0.5,    // Kickers are replaceable
-      'DEF': 0.7   // Defenses are somewhat replaceable
+      'QB': 1.0,   
+      'RB': 1.4,  
+      'WR': 1.3,   
+      'TE': 1.2,   
+      'K': 0.5,    
+      'DEF': 0.7   
     };
     return multipliers[position] || 1.0;
   }

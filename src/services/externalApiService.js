@@ -45,8 +45,8 @@ class ExternalApiService {
     }
   }
 
-  // Helper to get player age (you may need another API endpoint for this)
-  // For now, we'll return null and handle it separately
+  // Helper to get player age 
+  // For now, we'll return null 
   calculateAge(birthDate) {
     if (!birthDate) return null;
     const today = new Date();
