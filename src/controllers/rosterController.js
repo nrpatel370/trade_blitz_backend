@@ -1,7 +1,20 @@
+/*
+ * rosterController.js - Roster Controller
+ * 
+ * Handles HTTP requests for roster management operations
+ * Delegates business logic to rosterManagementService
+ * 
+ * Design Pattern: MVC Controller - Thin controller, fat service
+ * SOLID: Single Responsibility - Only handles HTTP request/response
+ * SOLID: Dependency Inversion - Depends on service abstraction
+ */
+
 const db = require('../config/database');
 const rosterManagementService = require('../services/rosterManagementService');
 
-// Get all rosters for user
+/*
+ * Get all rosters belonging to the authenticated user
+ */
 exports.getRosters = async (req, res) => {
   try {
     const [rosters] = await db.query(
@@ -16,12 +29,15 @@ exports.getRosters = async (req, res) => {
   }
 };
 
-// Create new roster with position slots
+/*
+ * Create a new roster with default position slots
+ * Enforces 5 roster maximum per user
+ */
 exports.createRoster = async (req, res) => {
   try {
     const { rosterName, leagueFormat } = req.body;
 
-    // Check roster limit (5 max)
+    // Check roster limit (5 max per user)
     const [existingRosters] = await db.query(
       'SELECT COUNT(*) as count FROM rosters WHERE user_id = ?',
       [req.userId]
@@ -31,6 +47,7 @@ exports.createRoster = async (req, res) => {
       return res.status(400).json({ error: 'Maximum of 5 rosters allowed per user' });
     }
 
+    // Delegate creation to service layer
     const result = await rosterManagementService.createRosterWithSlots(
       req.userId,
       rosterName,
@@ -44,7 +61,9 @@ exports.createRoster = async (req, res) => {
   }
 };
 
-// Get roster by ID with positions
+/*
+ * Get single roster with all position slots and player data
+ */
 exports.getRosterById = async (req, res) => {
   try {
     const result = await rosterManagementService.getRosterWithPositions(
@@ -62,12 +81,15 @@ exports.getRosterById = async (req, res) => {
   }
 };
 
-// Update roster metadata
+/*
+ * Update roster name or league format
+ * Verifies ownership before updating
+ */
 exports.updateRoster = async (req, res) => {
   try {
     const { rosterName, leagueFormat } = req.body;
 
-    // Verify ownership
+    // Verify user owns this roster
     const [rosters] = await db.query(
       'SELECT * FROM rosters WHERE roster_id = ? AND user_id = ?',
       [req.params.id, req.userId]
@@ -89,7 +111,9 @@ exports.updateRoster = async (req, res) => {
   }
 };
 
-// Delete roster
+/*
+ * Delete roster and all associated position slots
+ */
 exports.deleteRoster = async (req, res) => {
   try {
     const result = await rosterManagementService.deleteRoster(
@@ -107,7 +131,10 @@ exports.deleteRoster = async (req, res) => {
   }
 };
 
-// Add player to roster slot
+/*
+ * Add a player to a specific roster position slot
+ * Validates position eligibility before adding
+ */
 exports.addPlayerToSlot = async (req, res) => {
   try {
     const { positionSlot, playerId } = req.body;
@@ -126,7 +153,10 @@ exports.addPlayerToSlot = async (req, res) => {
   }
 };
 
-// Remove player from roster slot
+/*
+ * Remove player from a roster position slot
+ * Sets slot back to empty state
+ */
 exports.removePlayerFromSlot = async (req, res) => {
   try {
     const { positionSlot } = req.body;
@@ -144,7 +174,10 @@ exports.removePlayerFromSlot = async (req, res) => {
   }
 };
 
-// Get roster structure (for frontend to know available slots)
+/*
+ * Return the standard roster structure definition
+ * Tells frontend what positions are available (QB, RB1, RB2, etc.)
+ */
 exports.getRosterStructure = (req, res) => {
   const structure = rosterManagementService.getRosterStructure();
   res.json({ structure });

@@ -1,7 +1,18 @@
+/*
+ * tradeAnalysisService.js - Trade Analysis Service
+ * 
+ * Uses weighted scoring algorithm combining recent performance and projections
+ * 
+ * Design Pattern: Singleton - Single instance handles all trade calculations
+ * SOLID: Single Responsibility - Only handles trade value calculations and comparisons
+ */
+
 const db = require('../config/database');
 
 class TradeAnalysisService {
-  // Get player value based on recent performance and projections
+  /*
+   * Calculate a player's trade value based on performance data
+   */
   async getPlayerValue(playerId, currentWeek, season, scoringType = 'standard') {
     try {
       console.log(`\n=== Getting value for player ${playerId}, Week ${currentWeek}, Season ${season}, Scoring: ${scoringType} ===`);
@@ -102,7 +113,10 @@ class TradeAnalysisService {
     }
   }
 
-  // Position scarcity multiplier
+  /*
+   * Position scarcity multiplier - reflects real-world value differences
+   * RBs are most scarce, kickers most replaceable
+   */
   getPositionMultiplier(position) {
     const multipliers = {
       'QB': 1.0,   // QBs are plentiful
@@ -115,7 +129,9 @@ class TradeAnalysisService {
     return multipliers[position] || 1.0;
   }
 
-  // Analyze complete trade
+  /*
+   * Main trade analysis method, compares total value of both sides
+   */
   async analyzeTrade(playersGiving, playersReceiving, currentWeek, season, scoringType = 'standard') {
     try {
       console.log('\n========== TRADE ANALYSIS START ==========');
@@ -205,7 +221,9 @@ class TradeAnalysisService {
     }
   }
 
-  // Generate detailed analysis text
+  /*
+   * Builds analysis explaining trade impact
+   */
   generateDetailedAnalysis(givingValues, receivingValues, givingTotal, receivingTotal, percentDiff) {
     let analysis = [];
 

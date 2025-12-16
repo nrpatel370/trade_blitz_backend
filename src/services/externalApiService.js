@@ -1,13 +1,30 @@
+/*
+ * externalApiService.js - External API Integration Service
+ * 
+ * Handles all communication with SportsData.io NFL API
+ * Fetches real-time stats, projections, and player data
+ * 
+ * Design Pattern: Singleton - Single instance manages all API calls
+ * SOLID: Single Responsibility - Only handles external API communication
+ * SOLID: Dependency Inversion - Abstracts external API behind service interface
+ */
+
 const axios = require('axios');
 
 class ExternalApiService {
+  /*
+   * Initialize API configuration from environment variables
+   * API key and base URL must be set in .env file
+   */
   constructor() {
     this.apiKey = process.env.SPORTSDATA_API_KEY;
     this.baseUrl = process.env.SPORTSDATA_API_URL;
     this.currentSeason = process.env.CURRENT_NFL_SEASON || '2025';
   }
 
-  // Fetch fantasy game stats by week
+  /*
+   * Fetch actual fantasy point totals for a specific week
+   */
   async fetchFantasyStatsByWeek(week, seasonType = 'REG') {
     try {
       const url = `${this.baseUrl}/FantasyGameStatsByWeek/${this.currentSeason}${seasonType}/${week}`;
@@ -25,11 +42,12 @@ class ExternalApiService {
     }
   }
 
-  // Fetch fantasy projections by week
-
+  /*
+   * Fetch projected fantasy points for upcoming week
+   */
   async fetchFantasyProjectionsByWeek(week, seasonType = 'REG') {
     try {
-      // Use the correct projections endpoint (not IDP)
+      // Use the projections endpoint (separate from stats endpoint)
       const url = `https://api.sportsdata.io/v3/nfl/projections/json/PlayerGameProjectionStatsByWeek/${this.currentSeason}${seasonType}/${week}`;
       
       console.log(`Fetching fantasy projections from: ${url}`);
@@ -45,14 +63,17 @@ class ExternalApiService {
     }
   }
 
-  // Helper to get player age (you may need another API endpoint for this)
-  // For now, we'll return null and handle it separately
+  /*
+   * Calculate player age from birthdate
+   * Useful for dynasty league valuations (younger players more valuable)
+   */
   calculateAge(birthDate) {
     if (!birthDate) return null;
     const today = new Date();
     const birth = new Date(birthDate);
     let age = today.getFullYear() - birth.getFullYear();
     const monthDiff = today.getMonth() - birth.getMonth();
+    // Adjust if birthday hasn't occurred yet this year
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
       age--;
     }
